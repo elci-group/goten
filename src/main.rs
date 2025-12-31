@@ -98,10 +98,10 @@ fn main() {
 }
 
 fn analyze_and_fix_with_gemini(error_log: &str) {
-    let api_key = match fs::read_to_string(format!("{}/.keys/gemini", env::var("HOME").unwrap_or_default())) {
-        Ok(k) => k.trim().to_string(),
+    let api_key = match env::var("GEMINI_API_KEY") {
+        Ok(k) => k,
         Err(_) => {
-            eprintln!("Gemini API key not found in ~/.keys/gemini");
+            eprintln!("Gemini API key not found in environment variable GEMINI_API_KEY");
             return;
         }
     };

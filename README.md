@@ -24,7 +24,7 @@ Goten solves this through **Deep Isolation Architecture**:
 - **Transparent Proxying**: Use `goten` as a drop-in prefix for any `go` command.
 - **Hermetic Mode**: Use `--isolated` to skip host checks and jump straight to the container.
 - **Multi-Runtime Fallback**: Native support for **Docker**, **Podman**, and **Kubernetes** (`GOTEN_K8S=1`).
-- **AI Diagnostics**: Integrated Gemini 2.5 Pro bug analysis via `~/.keys/gemini`.
+- **AI Diagnostics**: Integrated Gemini 2.5 Pro bug analysis via `GEMINI_API_KEY`.
 - **System Maintenance**: `goten update --force` purges legacy system-wide Go installs and replaces them with the latest stable binary.
 - **Smart Root Detection**: Automatically finds the `module` boundary, even when run from deep subdirectories.
 
