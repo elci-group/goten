@@ -45,11 +45,21 @@ fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("Usage: goten <go-command|update> [args...]");
+        eprintln!("\nOptions:");
+        eprintln!("  --isolated    Skip host check and run build in isolated container immediately.");
         std::process::exit(1);
     }
 
-    if args[0] == "update" {
-        match update_host_go_permanent() {
+    let mut filtered_args = args.clone();
+    let mut force_isolated = false;
+    if let Some(pos) = filtered_args.iter().position(|x| x == "--isolated") {
+        force_isolated = true;
+        filtered_args.remove(pos);
+    }
+
+    if filtered_args[0] == "update" {
+        let force = filtered_args.iter().any(|x| x == "--force");
+        match update_host_go_permanent(force) {
             Ok(_) => println!("Host Go update process completed."),
             Err(e) => eprintln!("Failed to update host Go: {}", e),
         }
@@ -60,29 +70,30 @@ fn main() {
         eprintln!("Note: Could not set session GOTOOLCHAIN: {}", e);
     }
 
-    println!("Running command: go {}", args.join(" "));
-    
-    let output = run_command_capture(&args);
-    if output.status.success() {
-        println!("Command succeeded.");
-    } else {
+    if !force_isolated {
+        println!("Running command: go {}", filtered_args.join(" "));
+        let output = run_command_capture(&filtered_args);
+        if output.status.success() {
+            println!("Command succeeded.");
+            return;
+        }
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         eprintln!("{}", stderr);
-        
-        println!("Command failed. Analyzing requirements for isolated environment...");
-        let versions = detect_required_versions();
-        let version = versions.iter().max_by(|a, b| compare_versions(a, b)).cloned().unwrap_or_else(|| "latest".to_string());
-        println!("Selected dynamic version floor: {}", version);
-        
-        let container_output = run_in_container_capture(&args, &version);
-        if !container_output.status.success() {
-            let container_stderr = String::from_utf8_lossy(&container_output.stderr).to_string();
-            eprintln!("{}", container_stderr);
-            println!("Isolated build failed. Initiating Gemini 2.5 Pro analysis...");
-            analyze_and_fix_with_gemini(&container_stderr);
-        } else {
-            println!("Container run succeeded.");
-        }
+    }
+
+    println!("Command failed (or --isolated set). Analyzing requirements for isolated environment...");
+    let versions = detect_required_versions();
+    let version = versions.iter().max_by(|a, b| compare_versions(a, b)).cloned().unwrap_or_else(|| "latest".to_string());
+    println!("Selected dynamic version floor: {}", version);
+    
+    let container_output = run_in_container_capture(&filtered_args, &version);
+    if !container_output.status.success() {
+        let container_stderr = String::from_utf8_lossy(&container_output.stderr).to_string();
+        eprintln!("{}", container_stderr);
+        println!("Isolated build failed. Initiating Gemini 2.5 Pro analysis...");
+        analyze_and_fix_with_gemini(&container_stderr);
+    } else {
+        println!("Container run succeeded.");
     }
 }
 
@@ -132,9 +143,19 @@ fn analyze_and_fix_with_gemini(error_log: &str) {
     }
 }
 
-fn update_host_go_permanent() -> std::io::Result<()> {
+fn update_host_go_permanent(force: bool) -> std::io::Result<()> {
     println!("Purging outdated Go installations and upgrading to latest...");
+
     let purge_paths = vec!["/usr/local/go", "/usr/lib/go", "/usr/bin/go", "/usr/local/bin/go"];
+    
+    println!("Target purge paths: {:?}", purge_paths);
+    
+    if !force {
+        println!("WARNING: This operation is destructive and will remove existing Go installations.");
+        println!("Run with 'goten update --force' to proceed.");
+        return Ok(());
+    }
+
     for path in &purge_paths {
         if Path::new(path).exists() {
              let _ = Command::new("sudo").args(&["rm", "-rf", path]).status();
