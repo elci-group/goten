@@ -1,68 +1,80 @@
-# Goten: Go Version & Environment Orchestrator
+# 🏯 Goten (悟天)
 
-Goten is a Rust-based tool designed to solve the "it works on my machine" problem for Go developers. It intercepts Go commands, detects version mismatches, and automatically re-runs failed commands in isolated, version-compatible containers.
+**Goten** is a high-performance Rust orchestrator designed to eliminate Go toolchain friction. It acts as a transparent proxy for `go` commands, automatically detecting version mismatches and re-running failed builds in surgically isolated, version-compatible container environments.
 
-## Core Features
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Rust](https://img.shields.io/badge/Rust-2021-orange?style=flat&logo=rust)](https://www.rust-lang.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-- **Automatic Version Detection**: Scans `go.mod` and `go.sum` to identify the highest Go version required by the project or its dependencies.
-- **Deep Isolation Architecture**: 
-  - Mounts host source as read-only.
-  - Copies project files to a container-internal anonymous volume to prevent host `GOROOT` leakage.
-  - Strips host environment variables to ensure zero contamination.
-- **Dynamic Version Floor**: Automatically upgrades the container base to `golang:1.25` even if the project specifies an older version, satisfying modern dependency requirements (e.g., Go 1.25+ features).
-- **Gemini 2.5 Pro Integration**: Automatically contextualizes build failures and provides AI-generated fixes using Gemini 2.5 Pro when a container build fails.
-- **System-Wide Upgrades**: Provides a destructive `update` command to purge legacy Go installations and install the latest stable toolchain globally.
-- **Multi-Runtime Fallback**: Supports Docker, Podman, and Kubernetes (`GOTEN_K8S=1`).
+---
 
-## Installation
+## 🚀 The Problem
+Host environments often lag behind project requirements (e.g., stuck on Go 1.18 while a dependency requires Go 1.25.5). Direct volume mounting in Docker frequently leaks host `GOROOT` metadata, leading to `package cmp is not in GOROOT` errors even inside modern containers.
 
-Build from source and move to your path:
+## 🛡️ The Goten Solution
+Goten solves this through **Deep Isolation Architecture**:
+1. **Dynamic Floor Detection**: Regex-scans `go.mod` and `go.sum` to identify the highest toolchain requirement across the entire dependency graph.
+2. **Physical Separation**: Mounts your project as `read-only`, then physically copies it to an anonymous container volume. This breaks all links to host-level Go metadata.
+3. **Environment Scrubbing**: Nukes all host environment variables and forces `GOTOOLCHAIN=auto` to allow the containerized Go toolchain to self-upgrade to precise patch versions.
+4. **AI Debugging**: If a build fails inside the isolated container, Goten leverages **Gemini 2.5 Pro** to contextualize the error and suggest a code-level fix.
+
+---
+
+## 🛠️ Features
+- **Transparent Proxying**: Use `goten` as a drop-in prefix for any `go` command.
+- **Multi-Runtime Fallback**: Native support for **Docker**, **Podman**, and **Kubernetes** (`GOTEN_K8S=1`).
+- **AI Diagnostics**: Integrated Gemini 2.5 Pro bug analysis via `~/.keys/gemini`.
+- **Global Purge & Upgrade**: `goten update` destroys legacy system-wide Go installs and replaces them with the latest stable binary.
+- **Smart Root Detection**: Automatically finds the `module` boundary, even when run from deep subdirectories.
+
+---
+
+## 📦 Installation
 
 ```bash
+# Clone and build
+git clone git@github.com:elci-group/goten.git
 cd goten
 cargo build --release
+
+# Install to path
 cp target/release/goten ~/bin/goten
 ```
 
-## Usage
+## ⌨️ Usage
 
-### 1. Transparent Wrapper
-Use `goten` as a prefix to any standard Go command. If the local Go installation fails (e.g., due to version incompatibility), Goten handles the fallback:
-
+### Standard Workflow
+Goten tries the host Go first. If it fails due to versioning, it triggers the isolated container fallback:
 ```bash
 goten test ./...
-goten build -o myapp .
+goten build -o production_binary .
 ```
 
-### 2. System Upgrade
-To permanently fix a legacy Go installation on your host:
-
+### System Maintenance
+Purge legacy versions (like 1.18) and install the latest stable Go (1.25.5) globally:
 ```bash
 goten update
 ```
-*Note: This will purge `/usr/local/go` and `/usr/bin/go` and install Go 1.25.5.*
 
-### 3. Kubernetes Backend
-For environments where local Docker is restricted, run Goten in a K8s pod:
-
+### Kubernetes Orchestration
+Run builds in an ephemeral K8s Pod for restricted environments:
 ```bash
-GOTEN_K8S=1 goten build ./...
+GOTEN_K8S=1 goten build .
 ```
 
-## Configuration
+---
 
-- **API Key**: Place your Gemini API key in `~/.keys/gemini` to enable AI bug analysis.
-- **Docker Permissions**: If the user is not in the `docker` group, Goten will automatically attempt a fallback to `podman`.
-
-## Error Analysis Example
-
-If a build fails inside the container, Goten will output:
+## 🤖 AI Bug Contextualization
+Goten doesn't just fail; it helps you fix. When a container build fails, Goten automatically triggers:
 ```text
 Isolated build failed. Initiating Gemini 2.5 Pro analysis...
 
 === Gemini 2.5 Pro Analysis & Fix ===
-The error 'undefined: ErrQuotaLimited' indicates a missing definition in internal/agent/hyper/provider.go.
-Suggested Fix:
-... [Code Diff] ...
+File: internal/agent/hyper/provider.go
+Issue: 'ErrQuotaLimited' is undefined.
+Fix: Import 'github.com/example/errors' or define the constant.
 =============================
 ```
+
+## 📄 License
+MIT © [ELCI Group](https://github.com/elci-group)
